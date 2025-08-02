@@ -81,7 +81,17 @@ This project is actively being developed and tested. The smart contract implemen
 ## Generated Client
 
 The TypeScript client code in `clients/js/src/generated/` is automatically generated using Codama from the Anchor IDL. This provides type-safe interactions with the smart contract.
+run
+
+```bash
+npx codama run js
+
+```
 
 ## Contributing
 
 This is a testing and learning project. Feel free to experiment with different approaches and improvements.
+
+```
+
+```
