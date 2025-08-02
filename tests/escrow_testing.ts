@@ -6,7 +6,9 @@ import {
   createSolanaClient,
   createTransaction,
   generateKeyPairSigner,
+  getAddressEncoder,
   getExplorerLink,
+  getProgramDerivedAddress,
   getSignatureFromTransaction,
   KeyPairSigner,
   Lamports,
@@ -20,6 +22,7 @@ import {
   SYSTEM_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "gill/programs";
+import { BN } from "@coral-xyz/anchor";
 
 let maker: KeyPairSigner;
 let mintA: KeyPairSigner;
@@ -35,8 +38,6 @@ let deposit: BigInt;
 let receive: BigInt;
 let feePayer: KeyPairSigner;
 let taker: KeyPairSigner;
-
-type makeParams = Parameters<typeof eschrowClient.getMakeInstruction>[0];
 
 const { rpc, rpcSubscriptions, sendAndConfirmTransaction } = createSolanaClient(
   {
@@ -72,6 +73,21 @@ const createMint = async (
     },
     tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
   });
+
+    const signedTransaction = await signTransactionMessageWithSigners(tx);
+
+    // Get the transaction signature
+    const signature = getSignatureFromTransaction(signedTransaction);
+
+    // Log the Solana Explorer link for the transaction
+    console.log('Transaction Explorer Link:', getExplorerLink({ transaction: signature }));
+
+    // Send and confirm the transaction
+    await sendAndConfirmTransaction(signedTransaction);
+
+    console.log('Mint account created successfully!');
+    console.log('Mint Address:', mint.address);
+  
 };
 
 const mintTokens = async (
@@ -117,7 +133,10 @@ describe("escrow_testing", () => {
     await createMint(feePayer, mintB, "Mint B");
 
     await mintTokens(feePayer, mintA.address, feePayer, maker.address, 10);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   });
+
+
   it("make", async () => {
     const expectedMakerAta = await getAssociatedTokenAccountAddress(
       mintA.address,
@@ -125,11 +144,31 @@ describe("escrow_testing", () => {
       TOKEN_2022_PROGRAM_ADDRESS
     );
 
+    const seedBN = new BN(seed)
+    const seedBytes = seedBN.toArray('le', 8);
+    const addressEncoder = getAddressEncoder();
+    const [escrowPDA, _bump] = await getProgramDerivedAddress({
+      programAddress: eschrowClient.ESCROW_TESTING_PROGRAM_ADDRESS,
+      seeds: [
+        Buffer.from("escrow"),
+        addressEncoder.encode(maker.address),
+        seedBytes,
+      ]
+    })
+
+    const vault = await getAssociatedTokenAccountAddress(
+      mintA.address, 
+      escrowPDA, 
+      tokenProgram
+    );
+
     const params = {
       maker: maker,
       mintA: mintA.address,
       mintB: mintB.address,
       makerAtaA: expectedMakerAta,
+      escrow: escrowPDA,
+      vault: vault,
       tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
       seed: 1,
       deposit: 1,
